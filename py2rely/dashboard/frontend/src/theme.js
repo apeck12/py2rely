@@ -25,21 +25,38 @@ export const themes = {
 
 export const TYPE_COLOR = {
   // --- Classification (High Impact / Vibrant) ---
-  Extract:     '#009d9a', // Electric Indigo
-  Class2D:     '#42D4F4', // Cyan
-  Select:      '#F032E6', // Magenta
-  Class3D:     '#ff832b', // Neon Red (High Focus)
-  PostProcess: '#FA003F', // Vivid Rose Red
-  Refine3D:    '#EC4899', // Pink
-  CtfRefine:   '#DCBEFF', // Lavender
+  Extract:     '#FF0602', // Electric Indigo
+  Class2D:     '#004FE0', // Cyan
+  Select:      '#4AC630', // Magenta
+  Class3D:     '#E09401', // Neon Red (High Focus)
+  PostProcess: '#E27E96', // Vivid Rose Red
+  Refine3D:    '#C6FB01', // Pink
+  CtfRefine:   '#A58A00', // Lavender
   
   // --- Final Steps (High Contrast / Deep) ---
-  Polish:      '#9A6324', // Brown
+  Polish:      '#02AC98', // Brown
   LocalRes:    '#FFFAC8', // Beige
-  MaskCreate:  '#00F5FF', // Navy (Deep contrast to reds/pinks)
-  Reconstruct: '#AAFFC3', // Mint
+  MaskCreate:  '#C800C1', // Navy (Deep contrast to reds/pinks)
+  Reconstruct: '#9E3700', // Mint
 }
 
+// export const TYPE_COLOR = {
+//   // --- Classification (High Impact / Vibrant) ---
+//   Extract:     '#009d9a', // Electric Indigo
+//   Class2D:     '#42D4F4', // Cyan
+//   Select:      '#F032E6', // Magenta
+//   Class3D:     '#ff832b', // Neon Red (High Focus)
+//   PostProcess: '#9E6B1E', // Vivid Rose Red
+//   Refine3D:    '#DE1D58', // Pink
+//   CtfRefine:   '#EC00F9', // Lavender
+  
+//   // --- Final Steps (High Contrast / Deep) ---
+//   Polish:      '#9A6324', // Brown
+//   LocalRes:    '#FFFAC8', // Beige
+//   MaskCreate:  '#1D8BDE', // Navy (Deep contrast to reds/pinks)
+//   Reconstruct: '#1DDE5D', // Mint
+// }
+ 
 export const STATUS_COLOR = {
   running:  '#f59e0b',
   finished: '#10b981',
