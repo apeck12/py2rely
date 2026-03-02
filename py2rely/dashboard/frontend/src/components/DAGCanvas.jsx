@@ -92,7 +92,7 @@ export default function DAGCanvas({ pipeline, selectedId, onSelect }) {
     const obs = new ResizeObserver(update)
     obs.observe(el)
     return () => obs.disconnect()
-  }, [])
+  }, [pipeline])
 
   // Build a lookup: job_id → node object
   const nodeById = useMemo(() => {
@@ -358,20 +358,34 @@ export default function DAGCanvas({ pipeline, selectedId, onSelect }) {
 
     {/* Horizontal scrollbar */}
     {scrollRatio < 0.99 && (
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 12, pointerEvents: 'none' }}>
-        {/* Track */}
-        <div style={{
-          position: 'absolute', left: TRACK_PAD, right: TRACK_PAD,
-          top: 4, height: 4,
-          background: theme.border, borderRadius: 2,
-        }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 20, pointerEvents: 'none', zIndex: 20 }}>
+        {/* Track — clickable to jump */}
+        <div
+          onMouseDown={e => {
+            e.preventDefault()
+            e.stopPropagation()
+            const { thumbW, trackUsable, scrollableWorld, contentBounds, zoom } = scrollGeomRef.current
+            if (trackUsable <= 0 || scrollableWorld <= 0) return
+            const rect = e.currentTarget.getBoundingClientRect()
+            const clickX = e.clientX - rect.left               // offset within track element
+            const pct = Math.max(0, Math.min(1, (clickX - thumbW / 2) / trackUsable))
+            const newWorldLeft = contentBounds.minX + pct * scrollableWorld
+            setPan(p => ({ ...p, x: -newWorldLeft * zoom }))
+          }}
+          style={{
+            position: 'absolute', left: TRACK_PAD, right: TRACK_PAD,
+            top: 7, height: 6,
+            background: theme.border, borderRadius: 3,
+            pointerEvents: 'auto', cursor: 'pointer',
+          }}
+        />
         {/* Thumb */}
         <div
           onMouseDown={onScrollbarMouseDown}
           style={{
-            position: 'absolute', top: 3, height: 6,
+            position: 'absolute', top: 4, height: 12,
             left: thumbLeft, width: thumbW,
-            background: theme.textMuted, borderRadius: 3,
+            background: theme.accent, borderRadius: 6,
             cursor: 'pointer', pointerEvents: 'auto',
           }}
         />
