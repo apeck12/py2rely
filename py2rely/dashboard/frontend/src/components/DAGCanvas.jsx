@@ -64,6 +64,10 @@ export default function DAGCanvas({ pipeline, selectedId, onSelect }) {
   const dragOrigin    = useRef(null)
   const dragMoved     = useRef(false)
   const scrollGeomRef = useRef({})
+  const panRef  = useRef(pan)
+  const zoomRef = useRef(zoom)
+  useEffect(() => { panRef.current  = pan  }, [pan])
+  useEffect(() => { zoomRef.current = zoom }, [zoom])
 
   const nodes = pipeline?.nodes ?? []
   const edges = pipeline?.edges ?? []
@@ -202,18 +206,29 @@ export default function DAGCanvas({ pipeline, selectedId, onSelect }) {
   const PINCH_SENSITIVITY = 0.004
   const onWheel = useCallback(e => {
     e.preventDefault()
-    // Pinch gesture (trackpad) — always zoom
-    if (e.ctrlKey) {
-      setZoom(z => Math.max(0.25, Math.min(2, z * (1 - e.deltaY * PINCH_SENSITIVITY))))
+    const svgRect = svgRef.current.getBoundingClientRect()
+    const mx = e.clientX - svgRect.left
+    const my = e.clientY - svgRect.top
+
+    // Detect discrete mouse wheel vs smooth trackpad scroll
+    const isMouseWheel = e.deltaMode !== 0 || Math.abs(e.deltaY) >= 40
+
+    // Pinch (ctrlKey) or mouse wheel → zoom anchored at cursor
+    if (e.ctrlKey || (isMouseWheel && Math.abs(e.deltaX) < 3)) {
+      const oldZoom = zoomRef.current
+      const newZoom = e.ctrlKey
+        ? Math.max(0.25, Math.min(2, oldZoom * (1 - e.deltaY * PINCH_SENSITIVITY)))
+        : Math.max(0.25, Math.min(2, oldZoom * (e.deltaY < 0 ? 1.1 : 0.9)))
+      const { x: px, y: py } = panRef.current
+      setZoom(newZoom)
+      setPan({
+        x: mx - (mx - px) * (newZoom / oldZoom),
+        y: my - (my - py) * (newZoom / oldZoom),
+      })
       return
     }
-    // Mouse wheel — zoom only
-    const isMouseWheel = e.deltaMode !== 0 || Math.abs(e.deltaY) >= 50
-    if (isMouseWheel) {
-      setZoom(z => Math.max(0.25, Math.min(2, z * (e.deltaY < 0 ? 1.1 : 0.9))))
-      return
-    }
-    // Trackpad two-finger scroll — pan (horizontal and vertical)
+
+    // Trackpad two-finger pan — translate in any direction
     setPan(p => ({
       x: p.x - e.deltaX * TRACKPAD_SENSITIVITY,
       y: p.y - e.deltaY * TRACKPAD_SENSITIVITY,
@@ -254,7 +269,7 @@ export default function DAGCanvas({ pipeline, selectedId, onSelect }) {
         borderRadius: 6, padding: '4px 10px', fontSize: 11, color: theme.textMuted,
         pointerEvents: 'none',
       }}>
-        <span><span style={{ color: '#6366f1', fontWeight: 700 }}>—</span> inputs</span>
+        <span><span style={{ color: '#4589ff', fontWeight: 700 }}>—</span> inputs</span>
         <span><span style={{ color: theme.accent, fontWeight: 700 }}>—</span> selected</span>
         <span><span style={{ color: '#10b981', fontWeight: 700 }}>—</span> outputs</span>
       </div>
@@ -262,9 +277,23 @@ export default function DAGCanvas({ pipeline, selectedId, onSelect }) {
 
     {/* Zoom controls */}
     <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={btnStyle} onClick={() => setZoom(z => Math.min(2, z * 1.25))}>+</div>
+      <div style={btnStyle} onClick={() => {
+        const mx = svgSize.w / 2, my = svgSize.h / 2
+        const oldZoom = zoomRef.current
+        const newZoom = Math.min(2, oldZoom * 1.25)
+        const { x: px, y: py } = panRef.current
+        setZoom(newZoom)
+        setPan({ x: mx - (mx - px) * (newZoom / oldZoom), y: my - (my - py) * (newZoom / oldZoom) })
+      }}>+</div>
       <div style={{ ...btnStyle, fontSize: 10, fontFamily: 'monospace' }}>{Math.round(zoom * 100)}%</div>
-      <div style={btnStyle} onClick={() => setZoom(z => Math.max(0.25, z * 0.8))}>−</div>
+      <div style={btnStyle} onClick={() => {
+        const mx = svgSize.w / 2, my = svgSize.h / 2
+        const oldZoom = zoomRef.current
+        const newZoom = Math.max(0.25, oldZoom * 0.8)
+        const { x: px, y: py } = panRef.current
+        setZoom(newZoom)
+        setPan({ x: mx - (mx - px) * (newZoom / oldZoom), y: my - (my - py) * (newZoom / oldZoom) })
+      }}>−</div>
     </div>
 
     <svg
@@ -289,7 +318,7 @@ export default function DAGCanvas({ pipeline, selectedId, onSelect }) {
           const key      = `${e.source}→${e.target}`
           const isInput  = isActive && e.target === activeId
           const isOutput = isActive && e.source === activeId
-          const edgeColor = isInput ? '#6366f1' : isOutput ? '#10b981' : theme.border2
+          const edgeColor = isInput ? '#4589ff' : isOutput ? '#10b981' : theme.border2
           const edgeActive = isInput || isOutput
           return (
             <path
@@ -322,10 +351,10 @@ export default function DAGCanvas({ pipeline, selectedId, onSelect }) {
               onClick={e => { e.stopPropagation(); onSelect(node.id === selectedId ? null : node.id) }}
               style={{ cursor: 'pointer', opacity: inLineage ? 1 : 0.2, transition: 'opacity 0.15s' }}
             >
-              {/* Direct parent ring (indigo = input) */}
+              {/* Direct parent ring (cyan = input) */}
               {isDirectParent && (
                 <rect x={-3} y={-3} width={NODE_W + 6} height={NODE_H + 6} rx={9}
-                  fill="none" stroke="#6366f1" strokeWidth={1.5} />
+                  fill="none" stroke="#4589ff" strokeWidth={1.5} />
               )}
 
               {/* Direct child ring (green = output) */}
@@ -337,7 +366,7 @@ export default function DAGCanvas({ pipeline, selectedId, onSelect }) {
               {/* Selection ring */}
               {selected && (
                 <rect x={-3} y={-3} width={NODE_W + 6} height={NODE_H + 6} rx={9}
-                  fill="none" stroke={theme.accent} strokeWidth={2} />
+                  fill="none" stroke={theme.accent} strokeWidth={3} />
               )}
 
               {/* Node body */}

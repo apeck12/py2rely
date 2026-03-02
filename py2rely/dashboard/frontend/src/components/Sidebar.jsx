@@ -4,6 +4,13 @@ import { useTheme, TYPE_COLOR, STATUS_COLOR } from '../theme.js'
 export default function Sidebar({ pipeline, selectedId, onSelect, width = 240 }) {
   const theme = useTheme()
   const [filter, setFilter] = useState('')
+  const [collapsedBins, setCollapsedBins] = useState(new Set())
+
+  const toggleBin = bin => setCollapsedBins(prev => {
+    const next = new Set(prev)
+    next.has(bin) ? next.delete(bin) : next.add(bin)
+    return next
+  })
 
   const nodes = (pipeline?.nodes ?? []).filter(n =>
     n.id.toLowerCase().includes(filter.toLowerCase()) ||
@@ -41,36 +48,53 @@ export default function Sidebar({ pipeline, selectedId, onSelect, width = 240 })
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {(() => {
           let lastBin = null
+          let currentBin = null
           const items = []
           for (const node of nodes) {
             if ((node.type === 'Extract' || node.type === 'Reconstruct') && node.binfactor) {
               if (node.binfactor !== lastBin) {
                 lastBin = node.binfactor
+                currentBin = node.binfactor
                 items.push({ kind: 'header', bin: node.binfactor, key: `bin-${node.binfactor}-${node.id}` })
               }
             }
-            items.push({ kind: 'node', node })
+            items.push({ kind: 'node', node, bin: currentBin })
           }
 
           return items.map(item => {
             if (item.kind === 'header') {
               return (
-                <div key={item.key} style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '8px 10px 4px',
-                  marginTop: 4,
-                }}>
+                <div
+                  key={item.key}
+                  onClick={() => toggleBin(item.bin)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '8px 10px 4px',
+                    marginTop: 4,
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                  }}
+                >
                   <div style={{ flex: 1, height: 1, background: theme.border2 }} />
                   <span style={{
                     fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
                     color: theme.accent, whiteSpace: 'nowrap', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', gap: 4,
                   }}>
+                    <span style={{
+                      fontSize: 8,
+                      display: 'inline-block',
+                      transform: collapsedBins.has(item.bin) ? 'rotate(-90deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.15s',
+                    }}>▼</span>
                     Binning {item.bin}×
                   </span>
                   <div style={{ flex: 1, height: 1, background: theme.border2 }} />
                 </div>
               )
             }
+
+            if (item.bin && !filter && collapsedBins.has(item.bin)) return null
 
             const { node } = item
             const selected = selectedId === node.id

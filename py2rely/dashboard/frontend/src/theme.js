@@ -24,22 +24,20 @@ export const themes = {
 }
 
 export const TYPE_COLOR = {
-  Import:      '#6366f1',
-  MotionCorr:  '#8b5cf6',
-  CtfFind:     '#a78bfa',
-  ManualPick:  '#0ea5e9',
-  AutoPick:    '#38bdf8',
-  Extract:     '#06b6d4',
-  Class2D:     '#f97316',
-  Select:      '#fb923c',
-  Class3D:     '#ef4444',
-  Refine3D:    '#dc2626',
-  PostProcess: '#10b981',
-  CtfRefine:   '#84cc16',
-  Polish:      '#eab308',
-  LocalRes:    '#14b8a6',
-  MaskCreate:  '#64748b',
-  Reconstruct: '#8b5cf6',
+  // --- Classification (High Impact / Vibrant) ---
+  Extract:     '#009d9a', // Electric Indigo
+  Class2D:     '#42D4F4', // Cyan
+  Select:      '#F032E6', // Magenta
+  Class3D:     '#ff832b', // Neon Red (High Focus)
+  PostProcess: '#FA003F', // Vivid Rose Red
+  Refine3D:    '#EC4899', // Pink
+  CtfRefine:   '#DCBEFF', // Lavender
+  
+  // --- Final Steps (High Contrast / Deep) ---
+  Polish:      '#9A6324', // Brown
+  LocalRes:    '#FFFAC8', // Beige
+  MaskCreate:  '#00F5FF', // Navy (Deep contrast to reds/pinks)
+  Reconstruct: '#AAFFC3', // Mint
 }
 
 export const STATUS_COLOR = {
