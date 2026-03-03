@@ -266,7 +266,7 @@ def get_cpus_per_node(partition: str = "cpu") -> int:
         line = line.strip()
         if line:
             try:
-                counts.append(int(line))
+                counts.append(int(line.rstrip("+")))
             except ValueError:
                 pass
 
