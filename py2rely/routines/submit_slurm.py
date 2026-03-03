@@ -1,6 +1,6 @@
 from typing import Optional, Tuple, List, Set
 from py2rely.config import get_load_commands
-import subprocess, warnings
+import subprocess, warnings, math
 import rich_click as click
 
 def create_shellsubmit(
@@ -197,3 +197,79 @@ def check_gpus(
         return valid[0]  # single entry
     return joiner.join(valid)
 
+
+############################### Node Estimation Functions ###################################
+
+
+def get_gpus_per_node(
+    gpu_constraint: Optional[str] = None,
+    partition: str = "gpu",
+) -> int:
+    """
+    Return the minimum number of GPUs per node in the given partition,
+    filtered to nodes whose feature flags match at least one token in gpu_constraint.
+
+    Parses the ``gpu:TYPE:COUNT`` field from ``sinfo -o "%G\t%f"``.
+    Takes the minimum across matching nodes so node counts are always sufficient.
+    """
+    cmd = ["sinfo", "-p", partition, "-o", "%G\t%f", "-h"]
+    out = subprocess.check_output(cmd, text=True)
+
+    constraint_tokens: Set[str] = set()
+    if gpu_constraint:
+        tokens, _ = _parse_constraint(gpu_constraint)
+        constraint_tokens = set(tokens)
+
+    counts: List[int] = []
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("\t")
+        gpu_field = parts[0]          # e.g. "gpu:h100:4"
+        features  = parts[1] if len(parts) > 1 else ""
+
+        # Filter by constraint tokens (OR logic — any match is enough)
+        if constraint_tokens:
+            node_features = {f.strip() for f in features.split(",")}
+            if not constraint_tokens.intersection(node_features):
+                continue
+
+        # Parse gpu:TYPE:COUNT
+        gpu_parts = gpu_field.split(":")
+        if len(gpu_parts) >= 3:
+            try:
+                counts.append(int(gpu_parts[2]))
+            except ValueError:
+                pass
+
+    if not counts:
+        raise ValueError(
+            f"Could not determine GPU count per node for constraint '{gpu_constraint}' "
+            f"in partition '{partition}'"
+        )
+    return min(counts)
+
+
+def get_cpus_per_node(partition: str = "cpu") -> int:
+    """
+    Return the minimum number of CPUs per node in the given partition.
+
+    Uses ``sinfo -p <partition> -o "%c" -h``.
+    Takes the minimum across all nodes so computed node counts are always sufficient.
+    """
+    cmd = ["sinfo", "-p", partition, "-o", "%c", "-h"]
+    out = subprocess.check_output(cmd, text=True)
+
+    counts: List[int] = []
+    for line in out.splitlines():
+        line = line.strip()
+        if line:
+            try:
+                counts.append(int(line))
+            except ValueError:
+                pass
+
+    if not counts:
+        raise ValueError(f"Could not determine CPU count per node in partition '{partition}'")
+    return min(counts)

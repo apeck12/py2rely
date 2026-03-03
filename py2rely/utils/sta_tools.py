@@ -87,7 +87,8 @@ class PipelineHelper:
             ngpus: The number of GPUs to be used.
             timeout: The timeout for the job in hours.
         """
-        from py2rely.routines.submit_slurm import check_gpus
+        import math
+        from py2rely.routines.submit_slurm import check_gpus, get_gpus_per_node, get_cpus_per_node
 
         # Timeout: keep hours for local execution, derive minutes for Slurm/submitit
         self.timeout = timeout  # hours (used by local execution/_execute_job)
@@ -103,11 +104,30 @@ class PipelineHelper:
         # Validate GPU Constraint
         check_gpus(self.gpu_constraint)
 
+        # Compute nodes needed for GPU jobs.
+        # Uses min GPUs-per-node across matching nodes (conservative: ensures enough
+        # nodes are requested even if Slurm allocates the sparsest GPU node type).
+        if self.gpu_constraint:
+            gpus_per_node = get_gpus_per_node(self.gpu_constraint)
+            self.gpu_nodes = math.ceil(self.num_gpus / gpus_per_node)
+        else:
+            self.gpu_nodes = 1
+
+        # Compute CPU job resources independently of GPU task count.
+        # Size tasks to fill one node efficiently: floor(cpus_per_node / ncpus).
+        # This avoids --oversubscribe and keeps CPU jobs on a single node.
+        cpus_per_node = get_cpus_per_node()
+        self.cpu_ntasks = cpus_per_node // self.ncpus
+        self.cpu_nodes = 1
+
         # Warn if no GPU constraint specified
         if self.gpu_constraint is None:
             print('No GPU Constraint Specified. Proceeding Without One...')
         else:
             print(f'Submiting GPU Jobs on {self.gpu_constraint} Queues...')
+            print(f'  GPU nodes: {self.gpu_nodes} (≥{ngpus} GPUs, {gpus_per_node} GPUs/node assumed)')
+
+        print(f'  CPU nodes: {self.cpu_nodes} ({self.cpu_ntasks} MPI ranks × {self.ncpus} CPUs on {cpus_per_node}-CPU nodes)')
 
     def print_pipeline_parameters(self, process: str, header: str = None, **kwargs):
         """
@@ -349,18 +369,28 @@ class PipelineHelper:
         os.makedirs(log_dir, exist_ok=True)
         executor = submitit.AutoExecutor(folder=log_dir)
     
-        # Adjust MPI Command if Present
-        if 'mpi_command' in job.joboptions:
-            job.joboptions['mpi_command'].value = f'mpirun --oversubscribe -n {self.ntasks}'
-
-        # Update Executor Parameters
+        # Adjust MPI command if present.
+        # Both nr_mpi and mpi_command must be set: the pipeliner gates MPI on nr_mpi > 1
+        # and substitutes XXXmpinodesXXX in mpi_command with the nr_mpi value.
+        # GPU jobs use ntasks (1 leader + 1 per GPU); CPU jobs use cpu_ntasks
+        # (fills one node cleanly at ncpus per rank, no oversubscribe needed).
         use_gpu = job.joboptions["use_gpu"].value if "use_gpu" in job.joboptions else False
+        mpi_ranks = self.ntasks if use_gpu else self.cpu_ntasks
+        if 'nr_mpi' in job.joboptions:
+            job.joboptions['nr_mpi'].value = mpi_ranks
+        if 'mpi_command' in job.joboptions:
+            mpi_flags = '--oversubscribe ' if use_gpu else ''
+            job.joboptions['mpi_command'].value = f'mpirun {mpi_flags}-n XXXmpinodesXXX'
+
+        # Update Executor Parameters.
+        nodes = self.gpu_nodes if use_gpu else self.cpu_nodes
         executor.update_parameters(
             slurm_partition = 'gpu' if use_gpu else 'cpu',
             timeout_min=self.timeout_min,
+            nodes=nodes,
             tasks_per_node=1,
             slurm_use_srun=False,
-            cpus_per_task=self.ncpus,  
+            cpus_per_task=self.ncpus,
             mem_per_cpu=f"{self.mem_per_cpu}G",
         )
 
