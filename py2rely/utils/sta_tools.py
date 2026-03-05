@@ -1,3 +1,4 @@
+from py2rely.routines.submit_slurm import check_gpus, get_node_count, get_cpus_per_node
 from pipeliner.jobs.relion import select_job, maskcreate_job, postprocess_job
 from py2rely.utils.custom_jobs import CustomPostprocessJob
 from py2rely.utils.progress import get_console
@@ -10,9 +11,8 @@ from typing import Tuple, List
 from rich.table import Table
 from rich.panel import Panel
 from pathlib import Path
+import warnings, time
 import numpy as np
-import warnings
-import time
 
 ##############################################################################
 
@@ -89,8 +89,6 @@ class PipelineHelper:
             ngpus: The number of GPUs to be used.
             timeout: The timeout for the job in hours.
         """
-        import math
-        from py2rely.routines.submit_slurm import check_gpus, get_gpus_per_node, get_cpus_per_node
 
         # Timeout: keep hours for local execution, derive minutes for Slurm/submitit
         self.timeout = timeout  # hours (used by local execution/_execute_job)
@@ -109,25 +107,20 @@ class PipelineHelper:
         # Compute nodes needed for GPU jobs.
         # Uses min GPUs-per-node across matching nodes (conservative: ensures enough
         # nodes are requested even if Slurm allocates the sparsest GPU node type).
-        if self.gpu_constraint:
-            gpus_per_node = get_gpus_per_node(self.gpu_constraint)
-            self.gpu_nodes = math.ceil(self.num_gpus / gpus_per_node)
-        else:
-            self.gpu_nodes = 1
+        self.gpu_nodes = get_node_count(self.gpu_constraint)
 
         # Compute CPU job resources independently of GPU task count.
         # Size tasks to fill one node: floor(cpus_per_node / ncpus) MPI ranks per node.
         # cpus_per_task will be set to ncpus × cpu_ntasks so SLURM reserves the full budget.
-        cpus_per_node = get_cpus_per_node()
-        self.cpu_ntasks = cpus_per_node // self.ncpus
-        self.cpu_nodes = 1
+        self.cpu_ntasks = get_cpus_per_node() // self.ncpus
+        self.cpu_nodes = 2
 
         # Warn if no GPU constraint specified
         if self.gpu_constraint is None:
             print('No GPU Constraint Specified. Proceeding Without One...')
         else:
             print(f'Submiting GPU Jobs on {self.gpu_constraint} Queues...')
-            print(f'  GPU nodes: {self.gpu_nodes} (≥{ngpus} GPUs, {gpus_per_node} GPUs/node assumed)')
+            print(f'  GPU nodes: {self.gpu_nodes} (≥{ngpus} GPUs)')
 
         print(f'  CPU nodes: {self.cpu_nodes} ({self.cpu_ntasks} MPI ranks × {self.ncpus} CPUs on {cpus_per_node}-CPU nodes)')
 
